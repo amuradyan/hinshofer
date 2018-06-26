@@ -3,13 +3,12 @@ package tokens
 import com.google.gson.Gson
 import com.typesafe.config.ConfigFactory
 import helpers.Helpers._
-import persistence.PrismMongoClient
 import org.bson.types.ObjectId
 import org.mongodb.scala.model.Filters._
 import org.quartz.impl.StdSchedulerFactory
 import org.quartz.{Job, JobExecutionContext}
 import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim, JwtHeader}
-import users.User
+import persistence.PrismMongoClient
 
 /**
   * Created by spectrum on 5/14/2018.
@@ -57,13 +56,13 @@ object TokenManagement {
 
   }
 
-  def issueToken(user: User) = {
+  def issueToken(loginSpec: LoginSpec) = {
     val header = JwtHeader(JwtAlgorithm.HS512, "JWT")
 
     var claim = JwtClaim()
     claim = claim + ("iat", System.currentTimeMillis())
     claim = claim + ("exp", System.currentTimeMillis() + 86400)
-    claim = claim + ("sub", user.username)
+    claim = claim + ("sub", loginSpec.username)
 
     Jwt.encode(header, claim, secret_key)
   }
@@ -75,7 +74,7 @@ object TokenManagement {
   }
 
   def blacklistToken(token: String) = {
-    if (!isTokenBlacklisted(token))
+    if (!isTokenBlacklisted(token) && isValid(token))
       tokenCollection.insertOne(Token(new ObjectId().toString, token)).results()
   }
 

@@ -11,8 +11,8 @@ import com.typesafe.scalalogging.Logger
 import helpers.CorsSupport
 import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
 
-import scala.concurrent.{Await, Future, Promise}
 import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future, Promise}
 
 /**
   * Created by spectrum on Jun, 2018

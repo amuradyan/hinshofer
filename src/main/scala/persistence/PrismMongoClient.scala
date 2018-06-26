@@ -11,6 +11,7 @@ import users.User
   * Created by spectrum on 5/14/2018.
   */
 object PrismMongoClient {
+
   import org.bson.codecs.configuration.CodecRegistries.{fromProviders, fromRegistries}
   import org.mongodb.scala.bson.codecs.DEFAULT_CODEC_REGISTRY
   import org.mongodb.scala.bson.codecs.Macros._
@@ -43,5 +44,6 @@ object PrismMongoClient {
   val prismDB = mongoClient.getDatabase(db).withCodecRegistry(codecRegistry)
 
   def getTokenCollection: MongoCollection[Token] = prismDB.getCollection("tokens")
+
   def getUsersCollection: MongoCollection[User] = prismDB.getCollection("users")
 }

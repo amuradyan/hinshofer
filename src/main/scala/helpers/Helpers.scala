@@ -48,4 +48,5 @@ object Helpers {
 
     def printHeadResult(initial: String = ""): Unit = println(s"${initial}${converter(headResult())}")
   }
+
 }

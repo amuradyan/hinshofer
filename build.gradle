@@ -57,9 +57,9 @@ dependencies {
     compile group: 'ch.megard', name: 'akka-http-cors_2.12', version: '0.3.0'
     compile group: 'org.quartz-scheduler', name: 'quartz', version: '2.3.0'
     compile group: 'com.itextpdf', name: 'itextpdf', version: '5.5.13'
-    compile ( group: 'com.pauldijou', name: 'jwt-core_2.12', version: '0.16.0'){
-        exclude (group: 'org.bouncycastle')
+    compile(group: 'com.pauldijou', name: 'jwt-core_2.12', version: '0.16.0') {
+        exclude(group: 'org.bouncycastle')
     }
-    runtime (group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.59')
-    runtime (group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: '1.59')
+    runtime(group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.59')
+    runtime(group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: '1.59')
 }

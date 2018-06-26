@@ -1,12 +1,10 @@
 package users
 
 import com.mongodb.client.model.UpdateOptions
-import helpers.Validators
-import persistence.PrismMongoClient
-import org.bson.types.ObjectId
 import helpers.Helpers._
+import org.bson.types.ObjectId
 import org.mongodb.scala.model.Filters._
-import tokens.{LoginSpec, TokenManagement}
+import persistence.PrismMongoClient
 
 final class UserNotFound extends Throwable
 
@@ -31,27 +29,14 @@ case class UserSpec(name: String,
     name != null && name.nonEmpty &&
       surname != null && surname.nonEmpty &&
       username != null && username.nonEmpty &&
-      email != null && Validators.isEmail(email) &&
-      passwordHash != null && passwordHash.nonEmpty
+      email != null &&
+      """(\w+)@([\w\.]+)""".r.unapplySeq(email.toLowerCase).isDefined
+    passwordHash != null && passwordHash.nonEmpty
   }
 }
 
 object UserManagement {
   val usersCollection = PrismMongoClient.getUsersCollection
-
-  def login(loginSpec: LoginSpec) = {
-    val users = usersCollection.find(and(equal("username", loginSpec.username), equal("passwordHash", loginSpec.passwordHash.toUpperCase))).first().results()
-
-    if (!users.isEmpty)
-      Some(TokenManagement.issueToken(users(0)))
-    else
-      None
-  }
-
-  def logout(token: String) = {
-    if (!TokenManagement.isTokenBlacklisted(token))
-      TokenManagement.blacklistToken(token)
-  }
 
   def createUser(userSpec: UserSpec) = {
     val newUser = User(userSpec)
@@ -68,6 +53,8 @@ object UserManagement {
   }
 
   def deleteUser(username: String) = usersCollection.deleteOne(equal("username", username)).results()
+
   def getAllUsers = usersCollection.find().results
+
   def save(user: User) = usersCollection.replaceOne(equal("username", user.username), user, new UpdateOptions().upsert(true)).results()
 }
