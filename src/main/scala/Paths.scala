@@ -176,7 +176,37 @@ trait Paths {
                       }
                     }
                   }
+              }~
+            pathPrefix("prisms") {
+              pathEnd {
+                corsHandler(origin) {
+                  get {
+                    complete(HttpResponse(StatusCodes.OK))
+                  }
+                }~
+                corsHandler(origin) {
+                  post {
+                    complete(HttpResponse(StatusCodes.OK))
+                  }
+                }
+              }~
+              pathPrefix(Segment) {
+                prismId => {
+                  pathEnd {
+                    corsHandler(origin) {
+                      delete {
+                        complete(HttpResponse(StatusCodes.OK))
+                      }
+                    }~
+                    corsHandler(origin) {
+                      patch {
+                        complete(HttpResponse(StatusCodes.OK))
+                      }
+                    }
+                  }
+                }
               }
+            }
           }
       }
     }
