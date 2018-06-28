@@ -3,8 +3,11 @@ package users
 import com.mongodb.client.model.UpdateOptions
 import helpers.Helpers._
 import org.bson.types.ObjectId
+import org.mongodb.scala.bson.conversions
 import org.mongodb.scala.model.Filters._
 import persistence.PrismMongoClient
+
+import scala.collection.mutable.ListBuffer
 
 final class UserNotFound extends Throwable
 
@@ -35,14 +38,29 @@ case class UserSpec(name: String,
   }
 }
 
+case class UserSearchCriteria(userIds: Option[List[String]] = None)
+
 object UserManagement {
   val usersCollection = PrismMongoClient.getUsersCollection
+
+  def getUsers(userSearchCriteria: UserSearchCriteria) = {
+    val filters = new ListBuffer[conversions.Bson]()
+
+    userSearchCriteria.userIds match {
+      case Some(userIds) => filters += in("username", userIds: _*)
+      case None => ;
+    }
+
+    if (!filters.isEmpty)
+      usersCollection.find(and(filters: _*)).results()
+    else usersCollection.find().results()
+  }
 
   def createUser(userSpec: UserSpec) = {
     val newUser = User(userSpec)
 
     usersCollection.insertOne(newUser).results()
-    val insertedUser = getByUsername(userSpec.username)
+    getByUsername(userSpec.username)
   }
 
   def getByUsername(username: String): Option[User] = {
