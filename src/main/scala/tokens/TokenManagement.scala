@@ -14,13 +14,14 @@ import persistence.PrismMongoClient
   * Created by spectrum on 5/14/2018.
   */
 
+case class BareToken(token: String)
 case class Token(_id: String, token: String)
 
-case class LoginSpec(username: String, passwordHash: String) {
-  def isValid = username != null && username.nonEmpty && passwordHash != null && passwordHash.nonEmpty
+case class LoginSpec(handle: String, passwordHash: String) {
+  def isValid = handle != null && handle.nonEmpty && passwordHash != null && passwordHash.nonEmpty
 }
 
-case class JWTPayload(iat: Long, exp: Long, sub: String, role: String, region: String)
+case class JWTPayload(iat: Long, exp: Long, sub: String)
 
 class TokenCleanup extends Job {
   val tokenCollection = PrismMongoClient.getTokenCollection
@@ -52,8 +53,8 @@ object TokenManagement {
         .withIntervalInHours(12)
         .repeatForever())
       .build()
-    scheduler.scheduleJob(job, trigger)
 
+    scheduler.scheduleJob(job, trigger)
   }
 
   def issueToken(loginSpec: LoginSpec) = {
@@ -62,7 +63,7 @@ object TokenManagement {
     var claim = JwtClaim()
     claim = claim + ("iat", System.currentTimeMillis())
     claim = claim + ("exp", System.currentTimeMillis() + 86400)
-    claim = claim + ("sub", loginSpec.username)
+    claim = claim + ("sub", loginSpec.handle)
 
     Jwt.encode(header, claim, secret_key)
   }
@@ -84,5 +85,4 @@ object TokenManagement {
 
   def decode(token: String): JWTPayload =
     new Gson().fromJson(Jwt.decode(token, secret_key, Seq(JwtAlgorithm.HS512)).get, classOf[JWTPayload])
-
 }

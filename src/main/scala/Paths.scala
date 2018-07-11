@@ -4,7 +4,7 @@ import akka.http.scaladsl.model.headers.HttpOrigin
 import akka.http.scaladsl.server.Directives.{entity, _}
 import akka.http.scaladsl.unmarshalling.{FromStringUnmarshaller, Unmarshaller}
 import com.google.gson.Gson
-import tokens.{JWTPayload, LoginSpec, TokenManagement}
+import tokens._
 import users.{User, UserManagement, UserSearchCriteria, UserSpec}
 
 import scala.concurrent.Future
@@ -41,7 +41,7 @@ trait Paths {
         pathSingleSlash {
           complete("It's alive!!!")
         } ~
-          pathPrefix("token") {
+          pathPrefix("tokens") {
             corsHandler(origin) {
               pathEnd {
                 post {
@@ -52,15 +52,43 @@ trait Paths {
                       if (!loginSpec.isValid)
                         complete(HttpResponse(StatusCodes.NotFound, entity = HttpEntity("Invalid username/password")))
                       else {
-                        val token = TokenManagement.issueToken(loginSpec)
+                        val userExists = UserManagement.exists(loginSpec)
 
-                        token match {
-                          case t: String => {
-                            logger.info(s"${loginSpec.username} logged in")
-                            complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, new Gson().toJson(t))))
+                        if (userExists) {
+                          val token = TokenManagement.issueToken(loginSpec)
+
+                          logger.info(s"${loginSpec.handle} logged in")
+                          complete(HttpResponse(StatusCodes.OK, entity = HttpEntity(ContentTypes.`application/json`, new Gson().toJson(BareToken(token)))))
+                        } else {
+                          complete(HttpResponse(StatusCodes.NotFound, entity = HttpEntity("Invalid username/password")))
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          } ~
+          pathPrefix("users") {
+            pathEnd {
+              corsHandler(origin) {
+                post {
+                  entity(as[String]) {
+                    userSpecJson => {
+                      logger.info(userSpecJson)
+                      val userSpec = new Gson().fromJson(userSpecJson, classOf[UserSpec])
+
+                      if (!userSpec.isValid)
+                        complete(HttpResponse(status = StatusCodes.BadRequest, entity = "Invalid user spec"))
+                      else {
+                        val newUser = UserManagement.createUser(userSpec)
+
+                        newUser match {
+                          case Some(u) => {
+                            val res = new Gson().toJson(u)
+                            complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
                           }
-                          case _ =>
-                            complete(HttpResponse(StatusCodes.NotFound, entity = HttpEntity("Invalid username/password")))
+                          case None => complete(HttpResponse(StatusCodes.NotFound))
                         }
                       }
                     }
@@ -92,7 +120,7 @@ trait Paths {
               }
             }
           }) {
-            pathPrefix("token") {
+            pathPrefix("tokens") {
               corsHandler(origin) {
                 delete {
                   TokenManagement.blacklistToken(token)
@@ -103,44 +131,20 @@ trait Paths {
               pathPrefix("users") {
                 pathEnd {
                   corsHandler(origin) {
-                    post {
-                      entity(as[String]) {
-                        userSpecJson => {
-                          logger.info(userSpecJson)
-                          val userSpec = new Gson().fromJson(userSpecJson, classOf[UserSpec])
+                    get {
+                      import CsvParameters._
 
-                          if (!userSpec.isValid)
-                            complete(HttpResponse(status = StatusCodes.BadRequest, entity = "Invalid user spec"))
-                          else {
-                            val newUser = UserManagement.createUser(userSpec)
+                      parameters('users.as[List[String]].?) {
+                        (users) => {
+                          var allUsers = Seq[User]()
+                          allUsers = UserManagement.getUsers(UserSearchCriteria(users))
 
-                            newUser match {
-                              case Some(u) => {
-                                val res = new Gson().toJson(u)
-                                complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
-                              }
-                              case None => complete(HttpResponse(StatusCodes.NotFound))
-                            }
-                          }
+                          val res = new Gson().toJson(allUsers.toArray)
+                          complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
                         }
                       }
                     }
-                  } ~
-                    corsHandler(origin) {
-                      get {
-                        import CsvParameters._
-
-                        parameters('users.as[List[String]].?) {
-                          (users) => {
-                            var allUsers = Seq[User]()
-                            allUsers = UserManagement.getUsers(UserSearchCriteria(users))
-
-                            val res = new Gson().toJson(allUsers.toArray)
-                            complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
-                          }
-                        }
-                      }
-                    }
+                  }
                 } ~
                   pathPrefix("me") {
                     corsHandler(origin) {
@@ -158,7 +162,7 @@ trait Paths {
                       pathEnd {
                         corsHandler(origin) {
                           get {
-                            logger.info(s"User $username accessed by ${payload.role}")
+                            logger.info(s"User $username accessed by ${payload.sub}")
                             val res = new Gson().toJson(UserManagement.getByUsername(username))
 
                             complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
@@ -166,47 +170,44 @@ trait Paths {
                         } ~
                           corsHandler(origin) {
                             delete {
-                              if (payload.role.equalsIgnoreCase("admin")) {
-                                UserManagement.deleteUser(username)
-                                complete(s"User $username deleted")
-                              } else
-                                complete(HttpResponse(StatusCodes.Unauthorized))
+                              UserManagement.deleteUser(username)
+                              complete(s"User $username deleted")
                             }
                           }
                       }
                     }
                   }
-              }~
-            pathPrefix("prisms") {
-              pathEnd {
-                corsHandler(origin) {
-                  get {
-                    complete(HttpResponse(StatusCodes.OK))
-                  }
-                }~
-                corsHandler(origin) {
-                  post {
-                    complete(HttpResponse(StatusCodes.OK))
-                  }
-                }
-              }~
-              pathPrefix(Segment) {
-                prismId => {
-                  pathEnd {
+              } ~
+              pathPrefix("prisms") {
+                pathEnd {
+                  corsHandler(origin) {
+                    get {
+                      complete(HttpResponse(StatusCodes.OK))
+                    }
+                  } ~
                     corsHandler(origin) {
-                      delete {
-                        complete(HttpResponse(StatusCodes.OK))
-                      }
-                    }~
-                    corsHandler(origin) {
-                      patch {
+                      post {
                         complete(HttpResponse(StatusCodes.OK))
                       }
                     }
+                } ~
+                  pathPrefix(Segment) {
+                    prismId => {
+                      pathEnd {
+                        corsHandler(origin) {
+                          delete {
+                            complete(HttpResponse(StatusCodes.OK))
+                          }
+                        } ~
+                          corsHandler(origin) {
+                            patch {
+                              complete(HttpResponse(StatusCodes.OK))
+                            }
+                          }
+                      }
+                    }
                   }
-                }
               }
-            }
           }
       }
     }
