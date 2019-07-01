@@ -1,4 +1,4 @@
-import java.io.InputStream
+import java.io.FileInputStream
 import java.security.{KeyStore, SecureRandom}
 
 import akka.Done
@@ -26,6 +26,9 @@ object Hinshofer extends App with CorsSupport with Paths {
   val conf = ConfigFactory.load()
   val host = conf.getString("app.host")
   val port = conf.getInt("app.port")
+  val keystorePath = conf.getString("app.keystorePath")
+  val keystorePass = conf.getString("app.keystorePass")
+
 
   implicit val actorSystem = ActorSystem("Prism")
   implicit val executionCtx = actorSystem.dispatcher
@@ -33,12 +36,12 @@ object Hinshofer extends App with CorsSupport with Paths {
 
   val ks: KeyStore = KeyStore.getInstance("PKCS12")
 
-  val keystore: InputStream = getClass.getResourceAsStream("/cert.p12")
+  val keystore = new FileInputStream(keystorePath)
   require(keystore != null, "Keystore required!")
-  ks.load(keystore, "".toCharArray)
+  ks.load(keystore, keystorePass.toCharArray)
 
   val keyManagerFactory: KeyManagerFactory = KeyManagerFactory.getInstance("SunX509")
-  keyManagerFactory.init(ks, "".toCharArray)
+  keyManagerFactory.init(ks, keystorePass.toCharArray)
 
   val tmf: TrustManagerFactory = TrustManagerFactory.getInstance("SunX509")
   tmf.init(ks)

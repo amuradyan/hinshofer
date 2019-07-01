@@ -34,16 +34,15 @@ case class UserSpec(name: String,
       name != null && name.nonEmpty &&
       surname != null && surname.nonEmpty &&
       handle != null && handle.nonEmpty &&
-      email != null &&
-      """(\w+)@([\w\.]+)""".r.unapplySeq(email.toLowerCase).isDefined
+      email != null && """(\w+)@([\w\.]+)""".r.unapplySeq(email.toLowerCase).isDefined
       passwordHash != null && passwordHash.nonEmpty
   }
 }
 
 case class UserSearchCriteria(userIds: Option[List[String]] = None)
 
-class UserManagement
 object UserManagement {
+  class UserManagement
 
   val usersCollection = PrismMongoClient.getUsersCollection
   val logger = Logger[UserManagement]

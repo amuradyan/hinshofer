@@ -1,17 +1,18 @@
+plugins {
+    id 'scala'
+    id 'com.github.johnrengelman.shadow' version '4.0.2'
+}
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
 group 'dekanat'
 version '1.0'
 
-buildscript {
-    repositories {
-        jcenter()
-    }
-    dependencies {
-        classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.0'
-    }
+repositories {
+    mavenCentral()
+    jcenter()
 }
-
-apply plugin: 'scala'
-apply plugin: 'com.github.johnrengelman.shadow'
 
 sourceSets {
     main {
@@ -25,22 +26,27 @@ sourceSets {
 }
 
 shadowJar {
-    baseName = 'hinshofer'
-    version = 1.0
-    transform(com.github.jengelman.gradle.plugins.shadow.transformers.AppendingTransformer) {
-        resource = 'reference.conf'
+    append 'reference.conf'
+    dependencies {
     }
 }
 
 jar {
+    classifier = 'all'
     manifest {
-        attributes 'Main-Class': 'Hinshofer'
+        attributes 'Main-Class': 'Hinshofer',
+                'Implementation-Title': 'Prism backend',
+                'Implementation-Version': 1.0
+    }
+
+    zip64 true
+}
+
+jar {
+    manifest {
     }
 }
 
-repositories {
-    mavenCentral()
-}
 
 dependencies {
     compile group: 'com.github.pathikrit', name: 'better-files_2.12', version: '3.5.0'
@@ -57,9 +63,5 @@ dependencies {
     compile group: 'ch.megard', name: 'akka-http-cors_2.12', version: '0.3.0'
     compile group: 'org.quartz-scheduler', name: 'quartz', version: '2.3.0'
     compile group: 'com.itextpdf', name: 'itextpdf', version: '5.5.13'
-    compile(group: 'com.pauldijou', name: 'jwt-core_2.12', version: '0.16.0') {
-        exclude(group: 'org.bouncycastle')
-    }
-    runtime(group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.59')
-    runtime(group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: '1.59')
+    compile(group: 'com.pauldijou', name: 'jwt-core_2.12', version: '0.16.0')
 }
