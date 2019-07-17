@@ -2,10 +2,9 @@ package persistence
 
 import com.mongodb.ConnectionString
 import com.typesafe.config.ConfigFactory
-import org.mongodb.scala.connection.ClusterSettings
 import org.mongodb.scala.{MongoClient, MongoClientSettings, MongoCollection, MongoCredential}
 import tokens.Token
-import users.User
+import users.UserModel
 
 /**
   * Created by spectrum on 5/14/2018.
@@ -25,18 +24,16 @@ object PrismMongoClient {
   val port = conf.getString("mongodb.port")
 
   val clientSettingsBuilder = MongoClientSettings.builder()
-  val mongoClusterSettingsBuilder = ClusterSettings.builder()
   val mongoConnectionString = new ConnectionString(s"mongodb://$host:$port")
-  mongoClusterSettingsBuilder.applyConnectionString(mongoConnectionString)
 
   val credential = MongoCredential.createScramSha1Credential(user, db, password.toCharArray)
   clientSettingsBuilder.credential(credential)
-  clientSettingsBuilder.clusterSettings(mongoClusterSettingsBuilder.build())
+  clientSettingsBuilder.applyConnectionString(mongoConnectionString)
 
   val codecRegistry = fromRegistries(
     fromProviders(
       classOf[Token],
-      classOf[User]),
+      classOf[UserModel]),
     DEFAULT_CODEC_REGISTRY)
 
   val mongoClient = MongoClient(clientSettingsBuilder.build())
@@ -45,5 +42,5 @@ object PrismMongoClient {
 
   def getTokenCollection: MongoCollection[Token] = prismDB.getCollection("tokens")
 
-  def getUsersCollection: MongoCollection[User] = prismDB.getCollection("users")
+  def getUsersCollection: MongoCollection[UserModel] = prismDB.getCollection("users")
 }

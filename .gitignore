@@ -11,6 +11,12 @@ UserManagement/src/main/scala/other/
 data/
 *.p12
 target/
+.classpath
+.project
+.settings/
+bin/
+
+
 # User-specific stuff
 .idea/**/workspace.xml
 .idea/**/tasks.xml

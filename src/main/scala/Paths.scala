@@ -4,8 +4,9 @@ import akka.http.scaladsl.model.headers.HttpOrigin
 import akka.http.scaladsl.server.Directives.{entity, _}
 import akka.http.scaladsl.unmarshalling.{FromStringUnmarshaller, Unmarshaller}
 import com.google.gson.Gson
+import pdi.jwt.JwtClaim
 import tokens._
-import users.{User, UserManagement, UserSearchCriteria, UserSpec}
+import users.{DuplicateEntryFound, User, UserManagement, UserSearchCriteria, UserSpec}
 
 import scala.concurrent.Future
 
@@ -22,14 +23,12 @@ trait CsvParameters {
 
 final object CsvParameters extends CsvParameters
 
-/**
-  * Created by spectrum on Jun, 2018
-  */
 trait Paths {
   val route = {
-    var payload: JWTPayload = null
+    var jwtClaim: JwtClaim = null
     var origin = HttpOrigin("http://a.com")
     var token = ""
+    val contentType = ContentTypes.`application/json`
 
     extractRequestContext {
       rc => {
@@ -49,19 +48,26 @@ trait Paths {
                     loginSpecJson => {
                       val loginSpec = new Gson().fromJson(loginSpecJson, classOf[LoginSpec])
 
-                      if (!loginSpec.isValid)
-                        complete(HttpResponse(StatusCodes.NotFound, entity = HttpEntity("Invalid username/password")))
-                      else {
-                        val userExists = UserManagement.exists(loginSpec)
+                      if (loginSpec.isValid) {
+                        try {
+                          val fetchRes = UserManagement.getByHandleAndPassword(loginSpec.handle, loginSpec.passwordHash)
 
-                        if (userExists) {
-                          val token = TokenManagement.issueToken(loginSpec)
-
-                          logger.info(s"${loginSpec.handle} logged in")
-                          complete(HttpResponse(StatusCodes.OK, entity = HttpEntity(ContentTypes.`application/json`, new Gson().toJson(BareToken(token)))))
-                        } else {
-                          complete(HttpResponse(StatusCodes.NotFound, entity = HttpEntity("Invalid username/password")))
+                          fetchRes match {
+                            case Some(u) => {
+                              val token = TokenManagement.issueToken(u)
+                              logger.info(s"${loginSpec.handle} logged in")
+                              val res = new Gson().toJson(BareToken(token))
+                              complete(HttpResponse(StatusCodes.Created, entity = HttpEntity(contentType, res)))
+                            }
+                            case None =>
+                              complete(HttpResponse(StatusCodes.UnprocessableEntity, entity = HttpEntity(contentType, "Invalid username/password")))
+                          }
+                        } catch {
+                          case e: DuplicateEntryFound =>
+                            complete(HttpResponse(StatusCodes.InternalServerError, entity = HttpEntity(contentType, e.getLocalizedMessage)))
                         }
+                      } else {
+                        complete(HttpResponse(StatusCodes.UnprocessableEntity, entity = HttpEntity(contentType, "Invalid username/password")))
                       }
                     }
                   }
@@ -79,16 +85,16 @@ trait Paths {
                       val userSpec = new Gson().fromJson(userSpecJson, classOf[UserSpec])
 
                       if (!userSpec.isValid)
-                        complete(HttpResponse(status = StatusCodes.BadRequest, entity = "Invalid user spec"))
+                        complete(HttpResponse(status = StatusCodes.UnprocessableEntity, entity = "Invalid user spec"))
                       else {
                         val newUser = UserManagement.createUser(userSpec)
 
                         newUser match {
                           case Some(u) => {
                             val res = new Gson().toJson(u)
-                            complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
+                            complete(HttpResponse(status = StatusCodes.Created, entity = HttpEntity(contentType, res)))
                           }
-                          case None => complete(HttpResponse(StatusCodes.NotFound))
+                          case None => complete(HttpResponse(StatusCodes.InternalServerError, entity = "Unable to create a user"))
                         }
                       }
                     }
@@ -108,7 +114,7 @@ trait Paths {
               logger.info(s"Is blacklisted: ${TokenManagement.isTokenBlacklisted(token)}")
               logger.info(s"Is valid: ${TokenManagement.isValid(token)}")
 
-              payload = TokenManagement.decode(token)
+              jwtClaim = TokenManagement.decode(token)
               !TokenManagement.isTokenBlacklisted(token) && TokenManagement.isValid(token)
             } else {
               if (rc.request.method.equals(HttpMethods.OPTIONS)) {
@@ -124,7 +130,9 @@ trait Paths {
               corsHandler(origin) {
                 delete {
                   TokenManagement.blacklistToken(token)
-                  complete(s"${payload.sub} logged out")
+                  val sub = jwtClaim.subject.getOrElse("")
+
+                  complete(HttpResponse(entity = HttpEntity(contentType, s"${sub} logged out")))
                 }
               }
             } ~
@@ -136,11 +144,10 @@ trait Paths {
 
                       parameters('users.as[List[String]].?) {
                         (users) => {
-                          var allUsers = Seq[User]()
-                          allUsers = UserManagement.getUsers(UserSearchCriteria(users))
+                          val allUsers = UserManagement.getUsers(UserSearchCriteria(users))
 
                           val res = new Gson().toJson(allUsers.toArray)
-                          complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
+                          complete(HttpResponse(entity = HttpEntity(contentType, res)))
                         }
                       }
                     }
@@ -150,28 +157,48 @@ trait Paths {
                     corsHandler(origin) {
                       pathEnd {
                         get {
-                          val jwtPayload = TokenManagement.decode(token)
-                          val res = new Gson().toJson(UserManagement.getByUsername(jwtPayload.sub))
-                          complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
+                          val sub = jwtClaim.subject.getOrElse("")
+
+                          UserManagement.getById(sub) match {
+                            case Some(user) => {
+                              val res = new Gson().toJson(user)
+                              complete(HttpResponse(entity = HttpEntity(contentType, res)))
+                            }
+                            case None =>
+                              complete(HttpResponse(StatusCodes.NotFound, entity = HttpEntity(contentType, s"Unable to find user $sub")))
+                          }
                         }
                       }
                     }
                   } ~
                   pathPrefix(Segment) {
-                    username => {
+                    userId => {
                       pathEnd {
                         corsHandler(origin) {
                           get {
-                            logger.info(s"User $username accessed by ${payload.sub}")
-                            val res = new Gson().toJson(UserManagement.getByUsername(username))
-
-                            complete(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, res)))
+                            UserManagement.getById(userId) match {
+                              case Some(user) => {
+                                val res = new Gson().toJson(user)
+                                complete(HttpResponse(entity = HttpEntity(contentType, res)))
+                              }
+                              case None =>
+                                complete(HttpResponse(StatusCodes.NotFound, entity = HttpEntity(contentType, s"Unable to find user $userId")))
+                            }
                           }
                         } ~
                           corsHandler(origin) {
                             delete {
-                              UserManagement.deleteUser(username)
-                              complete(s"User $username deleted")
+                              val deleteRes = UserManagement.deleteUser(userId)
+
+                              val deleted = deleteRes match {
+                                case Some(v) => v.getDeletedCount > 0
+                                case None => false
+                              }
+
+                              if (deleted)
+                                complete(HttpResponse(entity = HttpEntity(contentType, s"User $userId deleted")))
+                              else
+                                complete(HttpResponse(StatusCodes.InternalServerError, entity = HttpEntity(contentType, s"Unable to delete $userId")))
                             }
                           }
                       }

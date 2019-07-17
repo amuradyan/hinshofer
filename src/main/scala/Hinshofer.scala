@@ -53,7 +53,7 @@ object Hinshofer extends App with CorsSupport with Paths {
 
   val bindingFuture: Future[ServerBinding] = null
 
-  val f = for {bindingFuture <- Http().bindAndHandle(route, host, port)
+  val f = for {_ <- Http().bindAndHandle(route, host, port, connectionContext = https)
                waitOnFuture <- Promise[Done].future
   } yield waitOnFuture
 

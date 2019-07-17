@@ -1,6 +1,5 @@
 package tokens
 
-import com.google.gson.Gson
 import com.typesafe.config.ConfigFactory
 import helpers.Helpers._
 import org.bson.types.ObjectId
@@ -9,19 +8,19 @@ import org.quartz.impl.StdSchedulerFactory
 import org.quartz.{Job, JobExecutionContext}
 import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim, JwtHeader}
 import persistence.PrismMongoClient
+import users.UserModel
 
 /**
   * Created by spectrum on 5/14/2018.
   */
 
 case class BareToken(token: String)
+
 case class Token(_id: String, token: String)
 
 case class LoginSpec(handle: String, passwordHash: String) {
-  def isValid = handle != null && handle.nonEmpty && passwordHash != null && passwordHash.nonEmpty
+  def isValid = handle != null && handle.trim.nonEmpty && passwordHash != null && passwordHash.trim.nonEmpty
 }
-
-case class JWTPayload(iat: Long, exp: Long, sub: String)
 
 class TokenCleanup extends Job {
   val tokenCollection = PrismMongoClient.getTokenCollection
@@ -36,7 +35,8 @@ class TokenManagement
 object TokenManagement {
 
   val conf = ConfigFactory.load()
-  val secret_key = conf.getString("app.secret_key")
+  val secretKey = conf.getString("app.secret_key")
+  val tokenLife = conf.getInt("app.token_life")
   val scheduler = StdSchedulerFactory.getDefaultScheduler()
   val tokenCollection = PrismMongoClient.getTokenCollection
 
@@ -57,15 +57,15 @@ object TokenManagement {
     scheduler.scheduleJob(job, trigger)
   }
 
-  def issueToken(loginSpec: LoginSpec) = {
+  def issueToken(user: UserModel) = {
+
     val header = JwtHeader(JwtAlgorithm.HS512, "JWT")
 
-    var claim = JwtClaim()
-    claim = claim + ("iat", System.currentTimeMillis())
-    claim = claim + ("exp", System.currentTimeMillis() + 86400)
-    claim = claim + ("sub", loginSpec.handle)
-
-    Jwt.encode(header, claim, secret_key)
+    val claim = JwtClaim()
+      .issuedAt(System.currentTimeMillis())
+      .expiresAt(System.currentTimeMillis() + tokenLife)
+      .about(user._id)
+    Jwt.encode(header, claim, secretKey)
   }
 
   def isTokenBlacklisted(token: String) = {
@@ -79,10 +79,7 @@ object TokenManagement {
       tokenCollection.insertOne(Token(new ObjectId().toString, token)).results()
   }
 
-  def isValid(token: String): Boolean = {
-    Jwt.isValid(token, secret_key, Seq(JwtAlgorithm.HS512))
-  }
+  def isValid(token: String) = Jwt.isValid(token, secretKey, Seq(JwtAlgorithm.HS512))
 
-  def decode(token: String): JWTPayload =
-    new Gson().fromJson(Jwt.decode(token, secret_key, Seq(JwtAlgorithm.HS512)).get, classOf[JWTPayload])
+  def decode(token: String): JwtClaim = Jwt.decode(token, secretKey, Seq(JwtAlgorithm.HS512)).get
 }
