@@ -16,6 +16,7 @@ bin/
 .metals
 .bloop
 .ensime_cache.d
+.coursier/
 
 # User-specific stuff
 .idea/**/workspace.xml
