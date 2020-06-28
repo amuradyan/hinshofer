@@ -15,6 +15,11 @@ target/
 .project
 .settings/
 bin/
+.bloop/
+.metals/
+gradlew
+gradlew.bat
+*.code-workspace
 
 
 # User-specific stuff
