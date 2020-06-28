@@ -1,3 +1,17 @@
+buildscript {
+  repositories {
+    mavenCentral()
+    jcenter()
+    maven {
+        url "https://repo.gradle.org/gradle/libs-releases-local/"
+    }
+  }
+
+  dependencies {
+    classpath 'ch.epfl.scala:gradle-bloop_2.12:1.4.2'
+  }
+}
+
 plugins {
     id 'scala'
     id 'com.github.johnrengelman.shadow' version '4.0.2'
@@ -8,6 +22,10 @@ targetCompatibility = 1.8
 
 group 'dekanat'
 version '1.0'
+
+allprojects {
+  apply plugin: 'bloop'
+}
 
 repositories {
     mavenCentral()
@@ -40,12 +58,6 @@ jar {
 
     zip64 true
 }
-
-jar {
-    manifest {
-    }
-}
-
 
 dependencies {
     compile group: 'org.scala-lang', name: 'scala-library', version: '2.12.8'
